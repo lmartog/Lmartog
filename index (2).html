@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hadteal - Shop Now</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getDatabase, ref, onValue, push, set } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyC-UcVGDmknVBD_g1Xt75uTHpfpYcIn4bo",
+            databaseURL: "https://hadteal-bc21e-default-rtdb.firebaseio.com",
+            projectId: "hadteal-bc21e",
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        let allProducts = [];
+
+        // Fetch Products & Ads
+        onValue(ref(db), (snapshot) => {
+            const data = snapshot.val() || {};
+            
+            // Ad Injection
+            const adCode = data.settings?.ad_code || "";
+            document.getElementById('ad-top').innerHTML = adCode;
+            document.getElementById('ad-bottom').innerHTML = adCode;
+
+            if (data.products) {
+                allProducts = Object.keys(data.products).map(id => ({ id, ...data.products[id] }));
+                renderProducts(allProducts);
+            }
+        });
+
+        // Search Logic
+        window.handleSearch = (q) => {
+            const filtered = allProducts.filter(p => p.name.toLowerCase().includes(q.toLowerCase()));
+            renderProducts(filtered);
+        };
+
+        function renderProducts(products) {
+            const grid = document.getElementById('product-grid');
+            grid.innerHTML = products.map(p => `
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                    <img src="${p.image}" class="w-full h-40 object-cover" alt="${p.name}">
+                    <div class="p-3">
+                        <h3 class="font-bold text-slate-800 text-sm truncate">${p.name}</h3>
+                        <p class="text-green-600 font-bold text-lg">₹${p.price}</p>
+                        <button onclick="openCheckout('${p.id}', '${p.name}', ${p.price})" 
+                                class="w-full mt-2 bg-indigo-600 text-white py-2 rounded-xl text-xs font-bold active:scale-95 transition">
+                            BUY NOW
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Checkout Logic
+        let selectedProduct = null;
+        window.openCheckout = (id, name, price) => {
+            selectedProduct = { id, name, price };
+            document.getElementById('checkout-modal').classList.remove('hidden');
+            document.getElementById('checkout-modal').classList.add('flex');
+        };
+
+        window.closeCheckout = () => {
+            document.getElementById('checkout-modal').classList.add('hidden');
+        };
+
+        window.processOrder = (e) => {
+            e.preventDefault();
+            const orderData = {
+                productName: selectedProduct.name,
+                amount: selectedProduct.price,
+                customerName: document.getElementById('cName').value,
+                phone: document.getElementById('cPhone').value,
+                city: document.getElementById('cCity').value,
+                state: document.getElementById('cState').value,
+                street: document.getElementById('cStreet').value,
+                landmark: document.getElementById('cLandmark').value,
+                status: 'pending',
+                timestamp: Date.now()
+            };
+
+            const orderRef = push(ref(db, 'orders'));
+            const saleRef = push(ref(db, 'sales_history'));
+
+            Promise.all([set(orderRef, orderData), set(saleRef, { amount: selectedProduct.price, timestamp: Date.now() })])
+            .then(() => {
+                alert("Order Placed Successfully!");
+                closeCheckout();
+                document.getElementById('orderForm').reset();
+            });
+        };
+    </script>
+</head>
+<body class="bg-slate-50 text-slate-900 font-sans">
+
+    <nav class="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-200 p-3">
+        <div class="max-w-6xl mx-auto flex flex-col gap-2">
+            <h1 class="text-xl font-black text-indigo-700 text-center">HADTEAL</h1>
+            <input type="text" oninput="handleSearch(this.value)" placeholder="Search products..." 
+                   class="w-full bg-slate-100 border-none rounded-full px-4 py-2 text-sm focus:ring-2 ring-indigo-500 outline-none">
+        </div>
+    </nav>
+
+    <div id="ad-top" class="my-4 flex justify-center"></div>
+
+    <main class="p-2 max-w-6xl mx-auto">
+        <div id="product-grid" class="grid grid-cols-2 md:grid-cols-4 gap-2">
+            </div>
+    </main>
+
+    <div id="ad-bottom" class="my-4 flex justify-center"></div>
+
+    <div id="checkout-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] hidden items-center justify-center p-4">
+        <div class="bg-white w-full max-w-md rounded-3xl overflow-hidden shadow-2xl">
+            <div class="p-5 border-b flex justify-between items-center">
+                <h2 class="font-bold text-lg text-slate-800">Delivery Details</h2>
+                <button onclick="closeCheckout()" class="text-2xl text-slate-400">&times;</button>
+            </div>
+            <form id="orderForm" onsubmit="processOrder(event)" class="p-5 space-y-3">
+                <div class="grid grid-cols-2 gap-2">
+                    <input type="text" id="cName" placeholder="Name" required class="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 text-sm outline-indigo-500">
+                    <input type="tel" id="cPhone" placeholder="Mobile" required class="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 text-sm outline-indigo-500">
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <input type="text" id="cCity" placeholder="City" required class="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 text-sm outline-indigo-500">
+                    <input type="text" id="cState" placeholder="State" required class="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 text-sm outline-indigo-500">
+                </div>
+                <input type="text" id="cStreet" placeholder="Street / House No." required class="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 text-sm outline-indigo-500">
+                <input type="text" id="cLandmark" placeholder="Landmark" required class="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 text-sm outline-indigo-500">
+                <button type="submit" class="w-full bg-green-600 text-white font-bold py-4 rounded-2xl shadow-lg active:scale-95 transition">
+                    CONFIRM ORDER (COD)
+                </button>
+            </form>
+        </div>
+    </div>
+
+</body>
+</html>
